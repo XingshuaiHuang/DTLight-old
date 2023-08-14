@@ -1,0 +1,11 @@
+matplotlib==3.6.3
+scikit-learn==1.0.1
+torch==1.13.1
+torchaudio==0.13.1
+torchvision==0.14.1
+tqdm==4.64.1
+gym==0.21.0
+pfrl==0.3.0
+traci==1.15.0
+transformers==4.6.0
+tensorboard==2.11.2
