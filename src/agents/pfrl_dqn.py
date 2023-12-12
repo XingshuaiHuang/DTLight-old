@@ -12,7 +12,10 @@ from pfrl.q_functions import DiscreteActionValueHead
 from pfrl.utils.contexts import evaluating
 
 from agents.agent import IndependentAgent, Agent
-from dynamics_model.networks import AdaGAT, conv2d_size_out
+
+
+def conv2d_size_out(h_in, kernel_size=2, stride=1):
+    return (h_in - (kernel_size - 1) - 1) // stride + 1
 
 
 class SelectItem(nn.Module):

@@ -1,8 +1,6 @@
 from env import rewards
 from env import states
 
-from agents.fixedtime import FIXEDTIME
-from agents.stochastic import STOCHASTIC
 from agents.maxwave import MAXWAVE
 from agents.maxpressure import MAXPRESSURE, EMP
 from agents.pfrl_dqn import IDQN
@@ -35,19 +33,6 @@ agent_configs = {
         'EPS_DECAY': 220,
         'TARGET_UPDATE': 500,
         'demand_shape': 1
-    },
-
-    'FIXEDTIME': {
-        'agent': FIXEDTIME,
-        'state': states.mplight,
-        'reward': rewards.wait,
-        'max_distance': 1
-    },
-    'STOCHASTIC': {
-        'agent': STOCHASTIC,
-        'state': states.mplight,
-        'reward': rewards.wait,
-        'max_distance': 1
     },
     'MAXWAVE': {
         'agent': MAXWAVE,
