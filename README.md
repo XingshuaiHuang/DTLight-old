@@ -1,13 +1,13 @@
-# Traffic Signal Control Using Lightweight Transformers: An Offline RL Approach
+# Traffic Signal Control Using Lightweight Transformers: An Offline-to-Online RL Approach
 
-Source code implementing DTLight, the method in Traffic Signal Control Using Lightweight Transformers: An Offline RL Approach.
+Source code implementing DTLight, the method in Traffic Signal Control Using Lightweight Transformers: An Offline-to-Online RL Approach.
 The implementation is based on the open-source code of [RESCO](https://github.com/Pi-Star-Lab/RESCO) and [ODT](https://github.com/facebookresearch/online-dt).
 
-The benchmark uses the Simulation for Urban Mobility (SUMO), which must be installed separately. The conda enviroment can be installed by using
+The benchmark uses the Simulation for Urban Mobility (SUMO), which must be installed separately. The conda environment can be installed by using
 
  `conda env create -f conda_env.yml`.
 
-Eight scenarios are used to test DTLight. We create two synthetic single-intersection control scenarios, i.e., a signalized intersection with four three-lane approaches named _3-Lane_ and an intersection with four two-lane approaches named _2-Lane_. We adopt the other six scenarios from RESCO benchmark: Cologne1, Ingolstadt1, Cologne3, Cologne8, Grid 4 × 4, and Arterial 4 × 4.
+Eight scenarios are used to test DTLight. We create two synthetic single-intersection control scenarios, i.e., a signalized intersection with four three-lane approaches named _3-Lane_ and an intersection with four two-lane approaches named _2-Lane_. We adopt the other six scenarios from the RESCO benchmark: Cologne1, Ingolstadt1, Cologne3, Cologne8, Grid 4 × 4, and Arterial 4 × 4.
 
 ![](fig/maps.png)
 
@@ -16,7 +16,7 @@ Due to the file upload size limit, we are unable to upload the offline datasets 
 
 Please go through the following two steps to generate offline data and run experiments for DTLight.
 
-1. run offline_data_generator.py and generate offline data. An example command to generate offline dataset on 2-Lane scenario with IDQN as behavior policy:
+1. run offline_data_generator.py and generate offline data. An example command to generate an offline dataset on the 2-Lane scenario with IDQN as behavior policy:
 
    `python src/offline_data_generator.py --agent IDQN --map 2lane`
 
