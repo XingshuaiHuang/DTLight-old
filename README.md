@@ -25,3 +25,15 @@ Please go through the following two steps to generate offline data and run exper
     `python main_offline.py`
 
 You can also directly unzip `DTRL.zip` to get the offline datasets and then use the above command to execute DTLight.
+
+## citation
+If you find this repo beneficial for your research, kindly consider citing our work:
+
+```
+@article{huang2023traffic,
+  title={Traffic Signal Control Using Lightweight Transformers: An Offline-to-Online RL Approach},
+  author={Huang, Xingshuai and Wu, Di and Boulet, Benoit},
+  journal={arXiv preprint arXiv:2312.07795},
+  year={2023}
+}
+```
