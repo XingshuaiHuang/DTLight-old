@@ -68,27 +68,28 @@ class SequenceTrainer:
             states,
             actions,
             rewards,
-            rtg[:, :-1],
+            rtg,
             timesteps,
             ordering,
             padding_mask=padding_mask,
         )
 
-        if self.model.stochastic_policy:
-            loss, nll, entropy = stochastic_loss_fn(
-                action_preds,  # a_pred_dist
-                action_target,
-                padding_mask,
-                self.model.temperature().detach(),  # no gradient taken here
-            )
-        else:
-            # nll loss (treat action preds as logits)
-            loss = F.nll_loss(
-                action_preds.permute(0,2,1), 
-                action_target.squeeze(-1).long()
-            )
-            nll = torch.tensor(0.0, device=loss.device)
-            entropy = torch.tensor(0.0, device=loss.device)
+        # if self.model.stochastic_policy:
+        # GPT outputs a distribution over actions for max_len timesteps
+        loss, nll, entropy = stochastic_loss_fn(
+            action_preds,  # max_len a_pred_dist
+            action_target,
+            padding_mask,
+            self.model.temperature().detach(),  # no gradient taken here
+        )
+        # else:
+        #     # nll loss (treat action preds as logits)
+        #     loss = F.nll_loss(
+        #         action_preds.permute(0,2,1), 
+        #         action_target.squeeze(-1).long()
+        #     )
+        #     nll = torch.tensor(0.0, device=loss.device)
+        #     entropy = torch.tensor(0.0, device=loss.device)
 
         return loss, nll, entropy
 
@@ -100,13 +101,13 @@ class SequenceTrainer:
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
         self.optimizer.step()
         
-        if self.model.stochastic_policy:
-            self.log_temperature_optimizer.zero_grad()
-            temperature_loss = (
-                self.model.temperature() * (entropy - self.model.target_entropy).detach()
-            )
-            temperature_loss.backward()
-            self.log_temperature_optimizer.step()
+        # if self.model.stochastic_policy:
+        self.log_temperature_optimizer.zero_grad()
+        temperature_loss = (
+            self.model.temperature() * (entropy - self.model.target_entropy).detach()
+        )
+        temperature_loss.backward()
+        self.log_temperature_optimizer.step()
 
         if self.scheduler is not None:
             self.scheduler.step()
@@ -141,10 +142,10 @@ class SequenceTrainer:
         iter_bar.close()
 
         logs["training_time"] = time.time() - train_start
-        if self.model.stochastic_policy:
-            logs["last_nll"] = nlls[-1]
-            logs["last_entropy"] = entropies[-1]
-            logs["temp_value"] = self.model.temperature().detach().cpu().item()
+        # if self.model.stochastic_policy:
+        logs["last_nll"] = nlls[-1]
+        logs["last_entropy"] = entropies[-1]
+        logs["temp_value"] = self.model.temperature().detach().cpu().item()
         logs["last_loss"] = losses[-1]
         logs["avg_loss"] = np.mean(losses)
         # logs["loss_std"] = np.std(losses)

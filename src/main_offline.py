@@ -24,7 +24,7 @@ class Experiment:
             self.var["map"], 
             self.var["data_period"], 
             self.var["behavior_policy"], 
-            self.var["config_policy"]
+            self.var["config_policy"],
         )
         
         self.agent = MADTLight(
@@ -72,16 +72,16 @@ class Experiment:
         if route is not None:
             route = os.path.join(self.var["pwd"], route)
 
-        # suffix = time.strftime("_%m_%d_%H_%M_%S", time.localtime(time.time()))
-        policy_out = 'sto' if self.var["stochastic_policy"] else 'det'
-        suffix = "_{}_{}_e{}_o{}_d{}_{}".format(
-            self.var["behavior_policy"],
-            policy_out,
-            '~' + str(-self.var["eval_rtg_scale"]) if self.var["eval_rtg_scale"] < 0 else self.var["eval_rtg_scale"],
-            '~' + str(-self.var["online_rtg_scale"]) if self.var["online_rtg_scale"] < 0 else self.var["online_rtg_scale"],
-            self.var["alpha_ce"],
-            'compacterp' if self.var["adapter"] == 'compacter++' else self.var["adapter"],
-        )
+        suffix = time.strftime("_%m_%d_%H_%M_%S", time.localtime(time.time()))
+        # policy_out = 'sto' if self.var["stochastic_policy"] else 'det'
+        # suffix = "_{}_{}_e{}_o{}_d{}_{}".format(
+        #     self.var["behavior_policy"],
+        #     policy_out,
+        #     '~' + str(-self.var["eval_rtg_scale"]) if self.var["eval_rtg_scale"] < 0 else self.var["eval_rtg_scale"],
+        #     '~' + str(-self.var["online_rtg_scale"]) if self.var["online_rtg_scale"] < 0 else self.var["online_rtg_scale"],
+        #     self.var["alpha_ce"],
+        #     'compacterp' if self.var["adapter"] == 'compacter++' else self.var["adapter"],
+        # )
         run_name = "DTLight" + suffix + "-tr" + str(self.var["seed"])
         env = MultiSignal(
             run_name,
@@ -110,11 +110,8 @@ class Experiment:
 
         return env, obs_act
 
-    def _load_dataset(self, map_name, data_period, behavior_policy, config_policy):
-        if config_policy == "EMP":
-            dataset_path = f"DTRL/{map_name}_{data_period}_{behavior_policy}.pkl"
-        else:
-            dataset_path = f"DTRL/{map_name}_{data_period}_{behavior_policy}_{config_policy}.pkl"
+    def _load_dataset(self, map_name, data_period, behavior_policy, config_policy, aug_data=False):
+        dataset_path = f"DTRL/{map_name}_{data_period}_{behavior_policy}_{config_policy}.pkl"
         with open(dataset_path, "rb") as f:
             total_trajectories = pickle.load(f)
         print(f"Loaded dataset from {dataset_path}\n")
@@ -124,8 +121,7 @@ class Experiment:
         state_means = dict()
         state_stds = dict()
         if 'results' in total_trajectories:
-            print(f"\n***** {map_name} Min Dealy: {min(total_trajectories['results'].values())} *****\n")
-            # print(f"\n***** {map_name} Dealy: {total_trajectories['results'].values()} *****\n")
+            print(f"***** {map_name} Min Dealy: {min(total_trajectories['results'].values())} *****\n")
             total_trajectories.pop('results')
         for signal in total_trajectories:
             trajectories = total_trajectories[signal]
@@ -144,6 +140,17 @@ class Experiment:
             )
             num_timesteps = sum(traj_lens)
 
+            # print(f"\nMap-Signal: {map_name}-{signal}")
+            # print("=" * 50)
+            # print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps found")
+            # print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
+            # print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
+            # print(
+            #     f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}"
+            # )
+            # print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
+            # print("=" * 50)
+
             sorted_inds = np.argsort(returns)  # lowest to highest
             num_trajectories = 1
             timesteps = traj_lens[sorted_inds[-1]]
@@ -159,7 +166,7 @@ class Experiment:
             max_returns[signal] = np.max(returns)
             state_means[signal] = state_mean
             state_stds[signal] = state_std
-
+        
         return multi_trajectories, max_returns, state_means, state_stds
 
     def evaluate(self, augment_traj=False):
@@ -172,6 +179,7 @@ class Experiment:
         done = False
         while not done:
             action_dict = self.agent.act(state_dict, augment_traj)
+            # print(action_dict)
             state_dict, reward_dict, done, _ = self.env.step(action_dict)
             self.agent.observe(state_dict, reward_dict, done)
 
@@ -258,8 +266,9 @@ class Experiment:
 
         teacher_min_delay, _ = self.pretrain()
 
+        student_min_delay, online_min_delay, online_min_eps = 0, 0, 0
         if self.var["max_distill_iters"]:
-            pretrain_min_delay, _ = self.distill()
+            student_min_delay, _ = self.distill()
 
         if self.var["max_online_iters"]:
             online_min_delay, online_min_eps = self.online_tuning()  # TODO:
@@ -267,7 +276,7 @@ class Experiment:
         self.save_logs()
         print("\n=*=*=*=*=*=*=* END EXPERIMENT =*=*=*=*=*=*=*=\n")
 
-        return teacher_min_delay, pretrain_min_delay, online_min_delay, online_min_eps, self.logs
+        return teacher_min_delay, student_min_delay, online_min_delay, online_min_eps, self.logs
 
 
 if __name__ == "__main__":

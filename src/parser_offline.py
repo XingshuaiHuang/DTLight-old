@@ -5,15 +5,15 @@ import os
 
 def args_offline():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--map", type=str, default="ingolstadt1",
-                        choices=['3lane', '2lane',
-                                 'ingolstadt1', 'cologne1', 
+    parser.add_argument("--map", type=str, default="cologne1",
+                        choices=['ingolstadt1', 'cologne1', 
                                  'cologne3', 'cologne8',
-                                 'grid4x4', 'arterial4x4'])
+                                 'grid4x4', 'arterial4x4',
+                                 '3lane', 'arterial1', '2lane'])
     parser.add_argument("--data_period", type=str, default="100-hour",
                         help='period of offline data collection')
     parser.add_argument("--behavior_policy", type=str, default='IDQN',
-                        choices=['IDQN', 'EMP'])
+                        help='behavior policy used in offline data collection')
     parser.add_argument("--config_policy", type=str, default='MA2C',
                         help='policy used for env configuration (state, reward)')
     parser.add_argument("--seed", type=int, default=13)
@@ -33,8 +33,12 @@ def args_offline():
     parser.add_argument("--n_head", type=int, default=2)
     parser.add_argument("--activation_function", type=str, default="relu")
     parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--transformer_model", type=str, default="gpt2")
-    parser.add_argument("--adapter", type=str, default='compacter++')
+    parser.add_argument("--transformer_model", type=str, default="gpt2",
+                        choices=['gpt2', 'distilbert', 'trajgpt2'])
+    parser.add_argument("--adapter", type=str, default='compacter++',
+                        choices=['pfeiffer', 'houlsby', 'parallel', 'pfeiffer_inv', 'houlsby_inv', 
+                                 'compacter', 'compacter++', 'prefix_tuning', 
+                                 'lora', 'ia3', 'mam', 'unipelt'])
 
     # Evaluation options
     parser.add_argument("--eval_rtg_scale", type=int, default=0.2,
@@ -90,9 +94,12 @@ def args_offline():
     parser.add_argument("--log_dir", type=str, default='logs/')
     parser.add_argument("--data_dir", type=str, 
                         default=str(pathlib.Path().absolute())+os.sep+'DTRL'+os.sep)
-    parser.add_argument("--rs_dir", type=str, 
-                        default=str(pathlib.Path().absolute())+os.sep+'random_search'+os.sep)
+    parser.add_argument("--res_dir", type=str, 
+                        default=str(pathlib.Path().absolute())+os.sep+'results'+os.sep)
 
     args = parser.parse_args()
+    
+    os.makedirs(args.log_dir, exist_ok=True)
+    os.makedirs(args.res_dir, exist_ok=True)
 
     return args

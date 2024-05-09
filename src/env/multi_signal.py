@@ -198,14 +198,6 @@ class MultiSignal(gym.Env):
             self.queue_his[signal_id].append(queue_lengths[signal_id])
             utility[signal_id] = -np.mean(
                 self.queue_his[signal_id])  # avg. (minus) queue over elapse time steps (larger better)
-        # uti_array = np.array(list(utility.values()))
-        # u_bar = np.mean(uti_array)  # average utility over agents
-        # var = np.var(uti_array)
-        # std = np.std(uti_array, ddof=1)
-        # if u_bar == 0:
-        #     cv = abs(std / (u_bar + 0.01))
-        # else:
-        #     cv = abs(std / u_bar)
 
         done = self.sumo.simulation.getTime() >= self.end_time
 

@@ -10,21 +10,20 @@ class MADTLight():
         multi_offline_trajs, 
         max_returns,
         state_means, 
-        state_stds
+        state_stds,
     ):
         self.agents = dict()
-        for key in obs_act:
-            obs_space = obs_act[key][0]  # (num_states, )
-            num_actions = obs_act[key][1]  # int: num_phases
+        for signal in obs_act:
+            obs_space = obs_act[signal][0]  # (num_states, )
+            num_actions = obs_act[signal][1]  # int: num_phases
             state_dim = obs_space[-1]
             act_dim = 1
             action_range = [0, num_actions - 1]
-            offline_trajs = multi_offline_trajs[key]
-            max_return = max_returns[key]
-            state_mean = state_means[key]
-            state_std = state_stds[key]
-            signal = key
-            self.agents[key] = DTLight(
+            offline_trajs = multi_offline_trajs[signal]
+            max_return = max_returns[signal]
+            state_mean = state_means[signal]
+            state_std = state_stds[signal]
+            self.agents[signal] = DTLight(
                 var=var, 
                 signal=signal,
                 state_dim=state_dim, 
@@ -36,7 +35,7 @@ class MADTLight():
                 state_std=state_std,
             )
 
-    def pretrain(self):  # TODO: multi-processing
+    def pretrain(self):
         for agent_id in self.agents.keys():
             self.agents[agent_id].pretrain()
     

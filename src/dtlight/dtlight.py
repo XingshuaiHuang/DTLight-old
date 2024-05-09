@@ -35,7 +35,6 @@ class DTLight:
         state_std=None,
     ):
         self.var = var
-        self.signal = signal
         self.state_dim = state_dim
         self.act_dim = act_dim
         self.action_range = action_range
@@ -108,14 +107,14 @@ class DTLight:
             self.optimizer, lambda steps: min((steps + 1) / var["warmup_steps"], 1)
         )
 
-        if var["stochastic_policy"]:
-            self.log_temperature_optimizer = torch.optim.Adam(
-                [self.model.log_temperature],
-                lr=1e-4,
-                betas=[0.9, 0.999],
-            )
-        else:
-            self.log_temperature_optimizer = None
+        # if var["stochastic_policy"]:
+        self.log_temperature_optimizer = torch.optim.Adam(
+            [self.model.log_temperature],
+            lr=1e-4,
+            betas=[0.9, 0.999],
+        )
+        # else:
+        #     self.log_temperature_optimizer = None
 
         # Track the training progress and
         # training/evaluation/online performance in all the iterations
@@ -168,10 +167,10 @@ class DTLight:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        if self.var["stochastic_policy"]:
-            self.log_temperature_optimizer.load_state_dict(
-                checkpoint["log_temperature_optimizer_state_dict"]
-            )
+        # if self.var["stochastic_policy"]:
+        self.log_temperature_optimizer.load_state_dict(
+            checkpoint["log_temperature_optimizer_state_dict"]
+        )
         if reproduce:
             self.pretrain_iter = checkpoint["pretrain_iter"]
             self.online_iter = checkpoint["online_iter"]
@@ -267,14 +266,14 @@ class DTLight:
         self.scheduler = torch.optim.lr_scheduler.LambdaLR(
             self.optimizer, lambda steps: min((steps + 1) / self.var["warmup_steps"], 1)
         )
-        if self.var["stochastic_policy"]:
-            self.log_temperature_optimizer = torch.optim.Adam(
-                [self.model.log_temperature],
-                lr=1e-4,
-                betas=[0.9, 0.999],
-            )
-        else:
-            self.log_temperature_optimizer = None
+        # if self.var["stochastic_policy"]:
+        self.log_temperature_optimizer = torch.optim.Adam(
+            [self.model.log_temperature],
+            lr=1e-4,
+            betas=[0.9, 0.999],
+        )
+        # else:
+        #     self.log_temperature_optimizer = None
 
         # Operate knowledge distillation
         distiller = Distiller(
@@ -316,8 +315,11 @@ class DTLight:
     @torch.no_grad()
     def act(self, state, augment_traj=False):
         if augment_traj:
-            # More exploration for online finetuning
-            use_max_prob = False
+            if self.var["stochastic_policy"]:
+                # More exploration for online finetuning
+                use_max_prob = False
+            else:
+                use_max_prob = True
             scale_return = self.max_return * self.var["online_rtg_scale"]  # TODO:
         else:
             # Less exploration for evaluation
@@ -359,7 +361,7 @@ class DTLight:
 
             self.reset_idx = False
 
-        # add padding
+        # the latest action and reward are "padding" since we don't know them yet
         self.actions = torch.cat(
             [
                 self.actions,
@@ -386,15 +388,15 @@ class DTLight:
             num_envs=num_envs,
         )
 
-        if self.model.stochastic_policy:
-            # The return action is a Categorical distribution
-            if use_max_prob:
-                # self.action = action_dist.mean
-                self.action = action_dist.probs.argmax(dim=-1)
-            else:
-                self.action = action_dist.sample()
-            self.action = self.action.reshape(num_envs, -1, self.act_dim)[:, -1]
-            self.action = self.action.clamp(*self.model.action_range)
+        # if self.model.stochastic_policy:
+        # The return action is a Categorical distribution
+        if use_max_prob:
+            # self.action = action_dist.mean
+            self.action = action_dist.probs.argmax(dim=-1)
+        else:
+            self.action = action_dist.sample()
+        self.action = self.action.reshape(num_envs, -1, self.act_dim)[:, -1]
+        self.action = self.action.clamp(*self.model.action_range)
 
         return self.action[0].detach().cpu().numpy()
 

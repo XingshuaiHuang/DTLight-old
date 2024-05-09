@@ -68,11 +68,11 @@ class TransformSamplingSubTraj:
         ordering[ordering == -1] = ordering.max()
         timesteps[timesteps >= MAX_EPISODE_LEN] = MAX_EPISODE_LEN - 1  # padding cutoff
 
-        rtg = discount_cumsum(traj["rewards"][si:], gamma=1.0)[: tlen + 1].reshape(
+        rtg = discount_cumsum(traj["rewards"][si:], gamma=1.0)[: tlen].reshape(  
             -1, 1
         )
-        if rtg.shape[0] <= tlen:
-            rtg = np.concatenate([rtg, np.zeros((1, 1))])
+        # if rtg.shape[0] <= tlen:
+        #     rtg = np.concatenate([rtg, np.zeros((1, 1))])
 
         # padding and state + reward normalization
         act_len = aa.shape[0]
@@ -179,7 +179,7 @@ def create_dataloader(
         reward_scale=reward_scale,
         action_range=action_range,
     )
-
+    
     subset = SubTrajectory(trajectories, sampling_ind=sampling_ind, transform=transform)
 
     return torch.utils.data.DataLoader(

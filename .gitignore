@@ -3,6 +3,8 @@
 logs/
 *.pkl
 exp/
+results/
+__MACOSX/
 
 
 # Byte-compiled / optimized / DLL files

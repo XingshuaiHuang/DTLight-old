@@ -1,5 +1,4 @@
 import numpy as np
-
 from configs.mdp_config import mdp_configs
 
 
@@ -138,8 +137,11 @@ def wave(signals):
     return observations
 
 
-def ma2c(signals):
-    ma2c_config = mdp_configs['MA2C']
+def ma2c(signals, full_config=False):
+    if full_config:
+        ma2c_config = mdp_configs['Full']
+    else:
+        ma2c_config = mdp_configs['MA2C']
 
     signal_wave = dict()
     for signal_id in signals:

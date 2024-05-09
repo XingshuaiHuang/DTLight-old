@@ -5,7 +5,6 @@ This source code is licensed under the CC BY-NC license found in the
 LICENSE.md file in the root directory of this source tree.
 
 Part of the code was adapted from the following: 
-* https://github.com/facebookresearch/online-dt/blob/main/decision_transformer/models/decision_transformer.py
 * https://github.com/kzl/decision-transformer/blob/master/gym/decision_transformer/models/decision_transformer.py
 * https://github.com/denisyarats/pytorch_sac/blob/master/agent/actor.py
 
@@ -259,40 +258,109 @@ class DecisionTransformer(TrajectoryModel):
 
         self.predict_state = torch.nn.Linear(hidden_size, self.state_dim)
         self.predict_return = torch.nn.Linear(hidden_size, 1)
-        if stochastic_policy:
-            if discrete_actions:
-                # Output a Categorical Distribution for discrete action space
-                self.predict_action = CategoricalActor(
-                    hidden_size, action_range[-1] + 1
-                )
-            else:
-                # Output a SquashedNormal Distribution
-                self.predict_action = DiagGaussianActor(hidden_size, self.act_dim)
-        else:
-            # Output logits for discrete actions
-            self.predict_action = nn.Sequential(
-                nn.Linear(hidden_size, action_range[-1] + 1),
-                nn.Softmax(dim=-1),
+        # if stochastic_policy:
+        if discrete_actions:
+            # Output a Categorical Distribution for discrete action space
+            self.predict_action = CategoricalActor(
+                hidden_size, action_range[-1] + 1  # TODO: why +1?
             )
+        else:
+            # Output a SquashedNormal Distribution
+            self.predict_action = DiagGaussianActor(hidden_size, self.act_dim)
+        # else:
+        #     # Output logits for discrete actions
+        #     self.predict_action = nn.Sequential(
+        #         nn.Linear(hidden_size, action_range[-1] + 1),
+        #         nn.Softmax(dim=-1),
+        #     )
         self.stochastic_policy = stochastic_policy
         self.eval_context_length = eval_context_length
         self.ordering = ordering
         self.action_range = action_range
         self.hidden_size = hidden_size
 
-        if stochastic_policy:
-            self.log_temperature = torch.tensor(np.log(init_temperature))
-            self.log_temperature.requires_grad = True
-            self.target_entropy = target_entropy
-        else:
-            self.log_temperature = None
-            self.target_entropy = None
+        # if stochastic_policy:
+        self.log_temperature = torch.tensor(np.log(init_temperature))
+        self.log_temperature.requires_grad = True
+        self.target_entropy = target_entropy
+        # else:
+        #     self.log_temperature = None
+        #     self.target_entropy = None
 
     def temperature(self):
-        if self.stochastic_policy:
-            return self.log_temperature.exp()
+        # if self.stochastic_policy:
+        return self.log_temperature.exp()
+        # else:
+        #     return None
+
+    def forward(
+        self,
+        states,
+        actions,
+        rewards,
+        returns_to_go,
+        timesteps,
+        ordering,
+        padding_mask=None,
+    ):
+        batch_size, seq_length = states.shape[0], states.shape[1]
+
+        if padding_mask is None:
+            # attention mask for GPT: 1 if can be attended to, 0 if not
+            padding_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+
+        # embed each modality with a different head
+        state_embeddings = self.embed_state(states)
+        action_embeddings = self.embed_action(actions)
+        returns_embeddings = self.embed_return(returns_to_go)
+
+        if self.ordering:
+            order_embeddings = self.embed_ordering(timesteps)
         else:
-            return None
+            order_embeddings = 0.0
+
+        state_embeddings = state_embeddings + order_embeddings
+        action_embeddings = action_embeddings + order_embeddings
+        returns_embeddings = returns_embeddings + order_embeddings
+
+        # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
+        # which works nice in an autoregressive sense since states predict actions
+        stacked_inputs = (
+            torch.stack(
+                (returns_embeddings, state_embeddings, action_embeddings), dim=1
+            )
+            .permute(0, 2, 1, 3)
+            .reshape(batch_size, 3 * seq_length, self.hidden_size)
+        )
+        stacked_inputs = self.embed_ln(stacked_inputs)
+
+        # to make the attention mask fit the stacked inputs, have to stack it as well
+        stacked_padding_mask = (
+            torch.stack((padding_mask, padding_mask, padding_mask), dim=1)
+            .permute(0, 2, 1)
+            .reshape(batch_size, 3 * seq_length)
+        )
+
+        # we feed in the input embeddings (not word indices as in NLP) to the model
+        transformer_outputs = self.transformer(
+            inputs_embeds=stacked_inputs,
+            attention_mask=stacked_padding_mask,
+        )
+        x = transformer_outputs["last_hidden_state"]
+
+        # reshape x so that the second dimension corresponds to the original
+        # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
+        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
+
+        # get predictions
+        # predict next return given state and action
+        return_preds = self.predict_return(x[:, 2])
+        # predict next state given state and action
+        state_preds = self.predict_state(x[:, 2])
+        # predict next action logit given state
+        action_preds, logits = self.predict_action(x[:, 1])
+
+        return state_preds, action_preds, return_preds, logits
 
     def _input_transform(
         self, states, actions, rewards, returns_to_go, timesteps, num_envs
@@ -318,7 +386,10 @@ class DecisionTransformer(TrajectoryModel):
                 torch.arange(timesteps.shape[1], device=states.device),
                 (num_envs, 1),
             )
-            # pad all tokens to sequence length
+            
+            ## Pad all tokens to sequence length ##
+            # the first max_length - states.shape[1] tokens are padding tokens, 
+            # so they can't be attended to
             padding_mask = torch.cat(
                 [
                     torch.zeros(self.max_length - states.shape[1]),
@@ -399,78 +470,10 @@ class DecisionTransformer(TrajectoryModel):
 
         return states, actions, returns_to_go, timesteps, ordering, padding_mask
 
-    def forward(
-        self,
-        states,
-        actions,
-        rewards,
-        returns_to_go,
-        timesteps,
-        ordering,
-        padding_mask=None,
-    ):
-        batch_size, seq_length = states.shape[0], states.shape[1]
-
-        if padding_mask is None:
-            # attention mask for GPT: 1 if can be attended to, 0 if not
-            padding_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
-
-        # embed each modality with a different head
-        state_embeddings = self.embed_state(states)
-        action_embeddings = self.embed_action(actions)
-        returns_embeddings = self.embed_return(returns_to_go)
-
-        if self.ordering:
-            order_embeddings = self.embed_ordering(timesteps)
-        else:
-            order_embeddings = 0.0
-
-        state_embeddings = state_embeddings + order_embeddings
-        action_embeddings = action_embeddings + order_embeddings
-        returns_embeddings = returns_embeddings + order_embeddings
-
-        # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
-        # which works nice in an autoregressive sense since states predict actions
-        stacked_inputs = (
-            torch.stack(
-                (returns_embeddings, state_embeddings, action_embeddings), dim=1
-            )
-            .permute(0, 2, 1, 3)
-            .reshape(batch_size, 3 * seq_length, self.hidden_size)
-        )
-        stacked_inputs = self.embed_ln(stacked_inputs)
-
-        # to make the attention mask fit the stacked inputs, have to stack it as well
-        stacked_padding_mask = (
-            torch.stack((padding_mask, padding_mask, padding_mask), dim=1)
-            .permute(0, 2, 1)
-            .reshape(batch_size, 3 * seq_length)
-        )
-
-        # we feed in the input embeddings (not word indices as in NLP) to the model
-        transformer_outputs = self.transformer(
-            inputs_embeds=stacked_inputs,
-            attention_mask=stacked_padding_mask,
-        )
-        x = transformer_outputs["last_hidden_state"]
-
-        # reshape x so that the second dimension corresponds to the original
-        # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
-
-        # get predictions
-        # predict next return given state and action
-        return_preds = self.predict_return(x[:, 2])
-        # predict next state given state and action
-        state_preds = self.predict_state(x[:, 2])
-        # predict next action logit given state
-        action_preds, logits = self.predict_action(x[:, 1])
-
-        return state_preds, action_preds, return_preds, logits
-
     def get_predictions(
         self, states, actions, rewards, returns_to_go, timesteps, num_envs=1, **kwargs
     ):
+        """for inference"""
         (
             states,
             actions,
@@ -492,11 +495,11 @@ class DecisionTransformer(TrajectoryModel):
             padding_mask=padding_mask,
             **kwargs
         )
-        if self.stochastic_policy:
-            return state_preds[:, -1], action_preds, return_preds[:, -1]
-        else:
-            return (
-                state_preds[:, -1],
-                action_preds[:, -1].argmax(dim=-1),
-                return_preds[:, -1],
-            )
+        # if self.stochastic_policy:
+        return state_preds[:, -1], action_preds, return_preds[:, -1]
+        # else:
+        #     return (
+        #         state_preds[:, -1],
+        #         action_preds[:, -1].argmax(dim=-1),
+        #         return_preds[:, -1],
+        #     )
