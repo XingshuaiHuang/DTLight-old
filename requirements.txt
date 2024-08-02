@@ -1,9 +1,9 @@
 matplotlib==3.6.3
-scikit-learn==1.0.1
+scikit-learn
 torch
 torchaudio
 torchvision
-tqdm==4.64.1
+tqdm
 gym==0.21.0
 pfrl==0.3.0
 traci==1.15.0
